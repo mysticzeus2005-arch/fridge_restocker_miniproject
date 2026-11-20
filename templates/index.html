@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fridge Restock</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">❄</span><div><h1>Fridge Restock</h1><p>Keep track. Waste less. Restock smarter.</p></div></div>
+</header>
+<main class="container">
+  <section class="hero">
+    <div><h2>Your fridge, at a glance</h2><p>Add items manually, then tap “Taken Out” when you use one.</p></div>
+    <span class="hero-emoji">🥬 🥛 🥚</span>
+  </section>
+
+  {% set counts = namespace(out=0, low=0) %}
+  {% for it in items %}
+    {% if it.quantity <= 0 %}{% set counts.out = counts.out + 1 %}{% endif %}
+    {% if it.quantity <= it.min_quantity %}{% set counts.low = counts.low + 1 %}{% endif %}
+  {% endfor %}
+  <section class="stats">
+    <div class="stat"><span class="stat-icon">🧺</span><div><strong>{{ items|length }}</strong><small>Items tracked</small></div></div>
+    <div class="stat"><span class="stat-icon">⚠️</span><div><strong>{{ counts.out }}</strong><small>Out of stock</small></div></div>
+    <div class="stat"><span class="stat-icon">🛒</span><div><strong>{{ counts.low }}</strong><small>Need restocking</small></div></div>
+  </section>
+  <p class="hint">*Restock status is also shown on each item. Use the search and filters below to find products.</p>
+
+  <section class="panel add-panel">
+    <div class="section-heading"><h2>➕ Add a fridge item</h2></div>
+    <form action="/add" method="post" class="add-form">
+      <label>Product name<input name="name" placeholder="e.g. Milk" required></label>
+      <label>Category<select name="category"><option>Other</option><option>Dairy</option><option>Vegetables</option><option>Fruits</option><option>Meat</option><option>Drinks</option><option>Snacks</option></select></label>
+      <label>Quantity<input name="quantity" type="number" min="0" step="0.1" value="1" required></label>
+      <label>Unit<input name="unit" placeholder="pcs, litre, pack" value="pcs"></label>
+      <label>Minimum stock<input name="min_quantity" type="number" min="0" step="0.1" value="1" required></label>
+      <label>Expiry date<input name="expiry_date" type="date"></label>
+      <button class="primary add-btn" type="submit">Add Item</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading inventory-heading"><h2>📦 Fridge inventory</h2>
+      <input id="search" class="search" placeholder="Search items...">
+    </div>
+    <div class="filter-row">
+      <button class="filter active" data-filter="all">All</button>
+      <button class="filter" data-filter="low">Low stock</button>
+      <button class="filter" data-filter="out">Out of stock</button>
+    </div>
+    {% if items %}
+    <div class="items-grid" id="itemsGrid">
+      {% for item in items %}
+      {% set low = item.quantity <= item.min_quantity %}
+      {% set out = item.quantity <= 0 %}
+      <article class="item-card" data-name="{{ item.name|lower }}" data-stock="{{ 'out' if out else ('low' if low else 'ok') }}">
+        <div class="item-top"><span class="food-icon">{% if item.category == 'Dairy' %}🥛{% elif item.category == 'Vegetables' %}🥦{% elif item.category == 'Fruits' %}🍎{% elif item.category == 'Meat' %}🍗{% elif item.category == 'Drinks' %}🧃{% elif item.category == 'Snacks' %}🍪{% else %}🧊{% endif %}</span>
+          <span class="status {{ 'out' if out else ('low' if low else 'ok') }}">{{ 'Out of stock' if out else ('Low stock' if low else 'In stock') }}</span></div>
+        <h3>{{ item.name }}</h3><p class="category">{{ item.category }}</p>
+        <div class="qty"><strong>{{ item.quantity|int if item.quantity == item.quantity|int else item.quantity }}</strong><span>{{ item.unit }}</span></div>
+        <p class="min-label">Minimum: {{ item.min_quantity }} {{ item.unit }}</p>
+        {% if item.expiry_date %}<p class="expiry">📅 Expires: {{ item.expiry_date }}</p>{% endif %}
+        <div class="actions">
+          <form action="/item/{{ item.id }}/change" method="post"><input type="hidden" name="action" value="add"><button class="secondary" type="submit">＋ Add</button></form>
+          <form action="/item/{{ item.id }}/change" method="post"><input type="hidden" name="action" value="take"><button class="taken" type="submit">− Taken Out</button></form>
+          <form action="/item/{{ item.id }}/delete" method="post" onsubmit="return confirm('Delete {{ item.name }} from inventory?')"><button class="delete" type="submit" title="Delete">✕</button></form>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="empty"><div>🧊</div><h3>Your fridge is empty</h3><p>Add your first item using the form above.</p></div>
+    {% endif %}
+    <div id="noResults" class="empty hidden"><h3>No matching products</h3><p>Try another search or filter.</p></div>
+  </section>
+
+  <section class="panel restock-panel">
+    <div class="section-heading"><h2>🛒 Restock list</h2><p>Items at or below minimum quantity</p></div>
+    {% set restock_count = namespace(low=0) %}
+    {% for it in items %}{% if it.quantity <= it.min_quantity %}{% set restock_count.low = restock_count.low + 1 %}{% endif %}{% endfor %}
+    <div class="restock-list">
+      {% for item in items %}
+        {% if item.quantity <= item.min_quantity %}
+        <div class="restock-item"><span>🛍️ <strong>{{ item.name }}</strong></span><span>{{ item.quantity }} {{ item.unit }} left</span></div>
+        {% endif %}
+      {% endfor %}
+      {% if restock_count.low == 0 %}
+      <div class="all-good">✨ Everything is stocked above its minimum.</div>
+      {% endif %}
+    </div>
+  </section>
+  <footer>Fridge Restock • Your data is stored locally in fridge.db</footer>
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
